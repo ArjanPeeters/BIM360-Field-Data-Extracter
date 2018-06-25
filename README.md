@@ -2,7 +2,7 @@
 Extract data from autodesk BIM360 field
 
 Rename de config-sample.ini to config.ini
-Use the Client-ID and Client-Secret from you autodesk forge app.
+Use the Client-ID and Client-Secret from your autodesk forge app.
   See link below for a detailed explenation how to do this
   https://developer.autodesk.com/en/docs/oauth/v2/tutorials/create-app/
 Connect the Forge app to you Autodesk BIM360 account:
