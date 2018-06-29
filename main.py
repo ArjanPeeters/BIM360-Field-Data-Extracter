@@ -18,6 +18,12 @@ Account_ID = config.get("HQ", "account_id")
 BaseURL_field = "https://bim360field.eu.autodesk.com/"
 BaseURL_EU_Hub = "https://developer.api.autodesk.com/hq/v1/regions/eu/accounts/" + Account_ID
 
+#ingnore projects in this list
+ignore_projects = [
+	"Sample Project",
+	"Lokhorst Template Project"
+]
+
 
 #control what info you want to download
 harvest_info = {
@@ -28,12 +34,12 @@ harvest_info = {
     'tasks': True,
     'equipment': True,
     'areas': True,
-		'categories': True,
-		'checklists': True
+	'categories': True,
+	'checklists': True
 }
 
 
-"""Login in FIELD"""
+#Login in FIELD
 url = BaseURL_field + "api/login"
 
 payload = "username=" + UserName + "&password=" + Password
@@ -49,9 +55,9 @@ response = json.loads(
 
 Field_ticket = response['ticket']
 print "Field login succesful"
-"""function for FIELD commands"""
 
 
+#function for FIELD commands
 def Field_Api_CMD(soort, command, payload):
 	url = BaseURL_field + command
 
@@ -70,6 +76,7 @@ Scope = "data:read account:read bucket:read"
 
 All_Project_HQs = []
 All_Project_IDs = []
+All_Project_Names = []
 
 #get all field projects from field
 Get_Projects = Field_Api_CMD("GET", "api/projects", {'ticket': Field_ticket})
@@ -77,8 +84,10 @@ Get_Projects = Field_Api_CMD("GET", "api/projects", {'ticket': Field_ticket})
 #extract project id's and hq id's
 for i in range(len(Get_Projects)):
 	current_project = Get_Projects[i]
-	All_Project_HQs.append(current_project['hq_identifier'])
-	All_Project_IDs.append(current_project['project_id'])
+	if current_project['name'] not in ignore_projects:
+		All_Project_HQs.append(current_project['hq_identifier'])
+		All_Project_IDs.append(current_project['project_id'])
+		All_Project_Names.append(current_project['name'])
 
 #Login in to HQ
 payload = "client_id=" + Client_ID + "&client_secret=" + Client_secret + "&Account_id=" + Account_ID + "&grant_type=" + Grant_Type + "&scope=" + Scope
@@ -133,129 +142,55 @@ if harvest_info['project_info'] == True:
 		All_Project_Info.append(
 		    Get_Project_Info("projects", Current_Project_ID))
 		print "adding project info from " + All_Project_Info[i]['name']
+		All_Project_Info[i]['field_project_id'] = All_Project_IDs[i]
 	SaveFile("Project_info", All_Project_Info)
+
+
+#standard methode of getting info from field
+def Get_standard_records(Type_Name,Type_Query,Api_Location,**Parameters):
+	All_Records = []
+	if 'ticket' in Parameters:
+		Parameters['ticket']=Field_ticket
+	for i in range(len(All_Project_IDs)):
+		Current_Project_ID = All_Project_IDs[i]
+		if 'project_id' in Parameters:
+			Parameters['project_id'] = Current_Project_ID
+		Get_Records_from_Project = Field_Api_CMD(Type_Query,Api_Location,Parameters)
+		Count_Records = len(Get_Records_from_Project)
+		if Count_Records > 0:
+			for p in range(Count_Records):
+				Get_Records_from_Project[p]['project_id'] = Current_Project_ID
+			print "Adding %s %s for project: %s" % (Count_Records,Type_Name,All_Project_Names[i])
+			All_Records.append(Get_Records_from_Project)
+		else:
+			print "%s %s for project: %s" % (Count_Records,Type_Name,All_Project_Names[i])
+	SaveFile(Type_Name + "_info", All_Records)
+
+
 
 #get contacts from field
 if harvest_info['contacts'] == True:
+	Get_standard_records("Contacts","POST","api/contacts",ticket="x",project_id="x")
 
-	All_contacts = []
-
-	for i in range(len(All_Project_IDs)):
-
-		Current_Project_ID = All_Project_IDs[i]
-
-		Get_Contacts_from_Project = Field_Api_CMD("POST", "api/contacts", {'ticket': Field_ticket,'project_id': Current_Project_ID})
-
-		for i in range(len(Get_Contacts_from_Project)):
-
-			Get_Contacts_from_Project[i]['project_id'] = Current_Project_ID
-
-		print "Adding %s contacts" % len(Get_Contacts_from_Project)
-
-		All_contacts.append(Get_Contacts_from_Project)
-
-	SaveFile("Contact_info", All_contacts)
-
-#get all companies from field
 if harvest_info['companies'] == True:
+	Get_standard_records("Companies","POST","api/companies",ticket="x",project_id="x")
 
-	All_Companies = []
-
-	for i in range(len(All_Project_IDs)):
-
-		Current_Project_ID = All_Project_IDs[i]
-
-		Get_Companies_from_Project = Field_Api_CMD("POST", "api/companies", {'ticket': Field_ticket,'project_id': Current_Project_ID})
-
-		for i in range(len(Get_Companies_from_Project)):
-
-			Get_Companies_from_Project[i]['project_id'] = Current_Project_ID
-
-		print "Adding %s companies" % len(Get_Companies_from_Project)
-
-		All_Companies.append(Get_Companies_from_Project)
-
-	SaveFile("Companie_info", All_Companies)
-
-#get all issues from field
 if harvest_info['issues'] == True:
+	Get_standard_records("Companies","POST","api/get_issues",ticket="x",project_id="x")
 
-	All_Issues = []
-
-	for i in range(len(All_Project_IDs)):
-
-		Current_Project_ID = All_Project_IDs[i]
-
-		Get_Issues_from_Project = Field_Api_CMD("POST", "api/get_issues", {'ticket': Field_ticket,'project_id': Current_Project_ID})
-
-		for i in range(len(Get_Issues_from_Project)):
-
-			Get_Issues_from_Project[i]['project_id'] = Current_Project_ID
-
-		print "Adding %s Issues" % len(Get_Issues_from_Project)
-
-		All_Issues.append(Get_Issues_from_Project)
-
-	SaveFile("Issues_info", All_Issues)
-
-#get all Tasks from field
 if harvest_info['tasks'] == True:
-
-	All_Tasks = []
-
-	for i in range(len(All_Project_IDs)):
-
-		Current_Project_ID = All_Project_IDs[i]
-
-		Get_Tasks_from_Project = Field_Api_CMD("POST", "api/get_tasks", {'ticket': Field_ticket,'project_id': Current_Project_ID})
-
-		print "Adding %s Tasks" % len(Get_Tasks_from_Project)
-
-		All_Tasks.append(Get_Tasks_from_Project)
-
-	SaveFile("Tasks_info", All_Tasks)
-
-#get all Equipement from field
+	Get_standard_records("Companies","POST","api/get_tasks",ticket="x",project_id="x")	
+	
 if harvest_info['equipment'] == True:
+	Get_standard_records("Equipement","POST","api/get_equipment",ticket="x",project_id="x",details="all")
 
-	All_Equipment = []
-
-	for i in range(len(All_Project_IDs)):
-
-		Current_Project_ID = All_Project_IDs[i]
-
-		Get_Equipment_from_Project = Field_Api_CMD("POST", "api/get_equipment", {'ticket': Field_ticket,'project_id': Current_Project_ID,'details': "all"})
-
-		for i in range(len(Get_Equipment_from_Project)):
-
-			Get_Equipment_from_Project[i]['project_id'] = Current_Project_ID
-
-		print "Adding %s Equipment" % len(Get_Equipment_from_Project)
-
-		All_Equipment.append(Get_Equipment_from_Project)
-
-	SaveFile("Equipment_info", All_Equipment)
-
-#get all Areas from field
 if harvest_info['areas'] == True:
+	Get_standard_records("Areas","POST","api/areas",ticket="x",project_id="x")
 
-	All_Areas = []
+if harvest_info['checklists'] == True:
+	Get_standard_records("Checklists","GET","fieldapi/checklists/v1.json",ticket="x",project_id="x")
+	
 
-	for i in range(len(All_Project_IDs)):
-
-		Current_Project_ID = All_Project_IDs[i]
-
-		Get_Areas_from_Project = Field_Api_CMD("POST", "api/areas", {'ticket': Field_ticket,'project_id': Current_Project_ID})
-
-		for i in range(len(Get_Areas_from_Project)):
-
-			Get_Areas_from_Project[i]['project_id'] = Current_Project_ID
-
-		print "Adding %s Areas" % len(Get_Areas_from_Project)
-
-		All_Areas.append(Get_Areas_from_Project)
-
-	SaveFile("Areas_info", All_Areas)
 
 #get all Categories from field
 if harvest_info['categories'] == True:
@@ -291,28 +226,6 @@ if harvest_info['categories'] == True:
 	SaveFile("Categories_normal_info",All_Categories_Normal)
 	SaveFile("Categories_custom_info",All_Categories_Custom)
 	SaveFile("Categories_Equipment_sets_info",All_Categories_EquipmentSets)
-
-#get all Checklists from field
-if harvest_info['checklists'] == True:
-
-	All_Checklists = []
-
-	for i in range(len(All_Project_IDs)):
-
-		Current_Project_ID = All_Project_IDs[i]
-
-		Get_Checklists_from_Project = Field_Api_CMD("GET", "fieldapi/checklists/v1.json", {'ticket': Field_ticket,'project_id': Current_Project_ID})
-
-		for i in range(len(Get_Checklists_from_Project)):
-
-			Get_Checklists_from_Project[i]['project_id'] = Current_Project_ID
-
-		print "Adding %s Checklists" % len(Get_Checklists_from_Project)
-
-		All_Checklists.append(Get_Checklists_from_Project)
-
-	SaveFile("Checklists_info", All_Checklists)
-
 
 
 
