@@ -4,28 +4,28 @@ import datetime
 from ConfigParser import SafeConfigParser
 
 
-#get info from config.ini
+# get info from config.ini
 config = SafeConfigParser()
 config.read('config.ini')
 
-UserName = config.get("Field","username")
-Password = config.get("Field","password")
-Client_ID = config.get("HQ", "client_id")
-Client_secret = config.get("HQ", "client_secret")
-Account_ID = config.get("HQ", "account_id")
+username = config.get("Field", "username")
+password = config.get("Field", "password")
+client_id = config.get("HQ", "client_id")
+client_secret = config.get("HQ", "client_secret")
+account_id = config.get("HQ", "account_id")
 
 
-BaseURL_field = "https://bim360field.eu.autodesk.com/"
-BaseURL_EU_Hub = "https://developer.api.autodesk.com/hq/v1/regions/eu/accounts/" + Account_ID
+base_url_field = "https://bim360field.eu.autodesk.com/"
+base_url_eu_hub = "https://developer.api.autodesk.com/hq/v1/regions/eu/accounts/" + account_id
 
-#ingnore projects in this list
+# ignore projects in this list
 ignore_projects = [
-	"Sample Project",
-	"Lokhorst Template Project"
+    "Sample Project",
+    "Lokhorst Template Project"
 ]
 
 
-#control what info you want to download
+# control what info you want to download
 harvest_info = {
     'project_info': True,
     'companies': True,
@@ -34,15 +34,15 @@ harvest_info = {
     'tasks': True,
     'equipment': True,
     'areas': True,
-	'categories': True,
-	'checklists': True
+    'categories': True,
+    'checklists': True
 }
 
 
-#Login in FIELD
-url = BaseURL_field + "api/login"
+# Login in FIELD
+url = base_url_field + "api/login"
 
-payload = "username=" + UserName + "&password=" + Password
+payload = "username=" + username + "&password=" + password
 headers = {
     'content-type': "application/x-www-form-urlencoded",
     'Authorization':
@@ -54,43 +54,42 @@ response = json.loads(
     requests.request("POST", url, data=payload, headers=headers).text)
 
 Field_ticket = response['ticket']
-print "Field login succesful"
+print "Field login successful"
 
 
-#function for FIELD commands
-def Field_Api_CMD(soort, command, payload):
-	url = BaseURL_field + command
+# function for FIELD commands
+def field_api_cmd(soort, command, payload):
+    url = base_url_field + command
+    headers = {
+        'content-type': "application/x-www-form-urlencoded",
+        'Cache-Control': "no-cache",
+    }
 
-	headers = {
-	    'content-type': "application/x-www-form-urlencoded",
-	    'Cache-Control': "no-cache",
-	}
-
-	response = json.loads(requests.request(soort, url, data=payload, headers=headers).text)
-	return response
+    response = json.loads(requests.request(soort, url, data=payload, headers=headers).text)
+    return response
 
 
-#get all HQ & ID's from field
-Grant_Type = "client_credentials"
-Scope = "data:read account:read bucket:read"
+# get all HQ & ID's from field
+grant_type = "client_credentials"
+scope = "data:read account:read bucket:read"
 
-All_Project_HQs = []
-All_Project_IDs = []
-All_Project_Names = []
+all_project_HQs = []
+all_project_IDs = []
+all_project_names = []
 
-#get all field projects from field
-Get_Projects = Field_Api_CMD("GET", "api/projects", {'ticket': Field_ticket})
+# get all field projects from field
+get_projects = field_api_cmd("GET", "api/projects", {'ticket': Field_ticket})
 
-#extract project id's and hq id's
-for i in range(len(Get_Projects)):
-	current_project = Get_Projects[i]
-	if current_project['name'] not in ignore_projects:
-		All_Project_HQs.append(current_project['hq_identifier'])
-		All_Project_IDs.append(current_project['project_id'])
-		All_Project_Names.append(current_project['name'])
+# extract project id's and hq id's
+for i in range(len(get_projects)):
+    current_project = get_projects[i]
+    if current_project['name'] not in ignore_projects:
+        all_project_HQs.append(current_project['hq_identifier'])
+        all_project_IDs.append(current_project['project_id'])
+        all_project_names.append(current_project['name'])
 
-#Login in to HQ
-payload = "client_id=" + Client_ID + "&client_secret=" + Client_secret + "&Account_id=" + Account_ID + "&grant_type=" + Grant_Type + "&scope=" + Scope
+# Login in to HQ
+payload = "client_id=" + client_id + "&client_secret=" + client_secret + "&Account_id=" + account_id + "&grant_type=" + grant_type + "&scope=" + scope
 
 headers = {
     'Content-Type': "application/x-www-form-urlencoded",
@@ -104,131 +103,128 @@ response = json.loads(
         data=payload,
         headers=headers).text)
 
-#get access_token from response
+# get access_token from response
 access_token = response['access_token']
-print "Hub login succesfull"
+print "Hub login successful"
 
 
-#get all the projects from HQ
-def Get_Project_Info(command, proj_id):
-	headers = {
-	    'Content-Type': "application",
-	    'scope': "account:read",
-	    'Authorization': "Bearer " + access_token,
-	    'Cache-Control': "no-cache"
-	}
+# get all the projects from HQ
+def get_project_info(command, proj_id):
+    headers = {
+        'Content-Type': "application",
+        'scope': "account:read",
+        'Authorization': "Bearer " + access_token,
+        'Cache-Control': "no-cache"
+    }
 
-	response = requests.request(
-	    "GET", BaseURL_EU_Hub + "/" + command + "/" + proj_id, headers=headers)
-	return json.loads(response.text)
+    response = requests.request(
+        "GET", base_url_eu_hub + "/" + command + "/" + proj_id, headers=headers)
+    return json.loads(response.text)
 
 
-print len(All_Project_IDs), " projects are being harvested"
+print len(all_project_IDs), " projects are being harvested"
 
-#save file
+# save file
 timestamp = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
-def SaveFile(Name, Data):
-	filename = Name + "_" + timestamp + '.json'
-	with open(filename, 'w') as outfile:
-		json.dump(Data, outfile)
-	print filename + " saved"
 
 
-#get all project info from HQ
+def save_file(name, data):
+    filename = name + "_" + timestamp + '.json'
+    with open(filename, 'w') as outfile:
+        json.dump(data, outfile)
+    print filename + " saved"
+
+
+# get all project info from HQ
 if harvest_info['project_info'] == True:
-	All_Project_Info = []
-	for i in range(len(All_Project_HQs)):
-		Current_Project_ID = All_Project_HQs[i]
-		All_Project_Info.append(
-		    Get_Project_Info("projects", Current_Project_ID))
-		print "adding project info from " + All_Project_Info[i]['name']
-		All_Project_Info[i]['field_project_id'] = All_Project_IDs[i]
-	SaveFile("Project_info", All_Project_Info)
+    all_project_info = []
+    for i in range(len(all_project_HQs)):
+        current_project_id = all_project_HQs[i]
+        all_project_info.append(
+            get_project_info("projects", current_project_id))
+        print "adding project info from " + all_project_info[i]['name']
+        all_project_info[i]['field_project_id'] = all_project_IDs[i]
+    save_file("Project_info", all_project_info)
 
 
-#standard methode of getting info from field
-def Get_standard_records(Type_Name,Type_Query,Api_Location,**Parameters):
-	All_Records = []
-	if 'ticket' in Parameters:
-		Parameters['ticket']=Field_ticket
-	for i in range(len(All_Project_IDs)):
-		Current_Project_ID = All_Project_IDs[i]
-		if 'project_id' in Parameters:
-			Parameters['project_id'] = Current_Project_ID
-		Get_Records_from_Project = Field_Api_CMD(Type_Query,Api_Location,Parameters)
-		Count_Records = len(Get_Records_from_Project)
-		if Count_Records > 0:
-			for p in range(Count_Records):
-				Get_Records_from_Project[p]['project_id'] = Current_Project_ID
-			print "Adding %s %s for project: %s" % (Count_Records,Type_Name,All_Project_Names[i])
-			All_Records.append(Get_Records_from_Project)
-		else:
-			print "%s %s for project: %s" % (Count_Records,Type_Name,All_Project_Names[i])
-	SaveFile(Type_Name + "_info", All_Records)
+# standard methode of getting info from field
+def get_standard_records(type_name, type_query, api_location, **parameters):
+    all_records = []
+    if 'ticket' in parameters:
+        parameters['ticket']=Field_ticket
+    for i in range(len(all_project_IDs)):
+        current_project_id = all_project_IDs[i]
+        if 'project_id' in parameters:
+            parameters['project_id'] = current_project_id
+        get_records_from_project = field_api_cmd(type_query, api_location, parameters)
+        count_records = len(get_records_from_project)
+        if count_records > 0:
+            for p in range(count_records):
+                get_records_from_project[p]['project_id'] = current_project_id
+            print "Adding %s %s for project: %s" % (count_records, type_name, all_project_names[i])
+            all_records.append(get_records_from_project)
+        else:
+            print "%s %s for project: %s" % (count_records, type_name, all_project_names[i])
+    save_file(type_name + "_info", all_records)
 
 
-
-#get contacts from field
+# get contacts from field
 if harvest_info['contacts'] == True:
-	Get_standard_records("Contacts","POST","api/contacts",ticket="x",project_id="x")
+    get_standard_records("Contacts", "POST", "api/contacts", ticket="x", project_id="x")
 
 if harvest_info['companies'] == True:
-	Get_standard_records("Companies","POST","api/companies",ticket="x",project_id="x")
+    get_standard_records("Companies", "POST", "api/companies", ticket="x", project_id="x")
 
 if harvest_info['issues'] == True:
-	Get_standard_records("Companies","POST","api/get_issues",ticket="x",project_id="x")
+    get_standard_records("Companies", "POST", "api/get_issues", ticket="x", project_id="x")
 
 if harvest_info['tasks'] == True:
-	Get_standard_records("Companies","POST","api/get_tasks",ticket="x",project_id="x")	
-	
+    get_standard_records("Companies", "POST", "api/get_tasks", ticket="x", project_id="x")
+
 if harvest_info['equipment'] == True:
-	Get_standard_records("Equipement","POST","api/get_equipment",ticket="x",project_id="x",details="all")
+    get_standard_records("Equipement", "POST", "api/get_equipment", ticket="x", project_id="x", details="all")
 
 if harvest_info['areas'] == True:
-	Get_standard_records("Areas","POST","api/areas",ticket="x",project_id="x")
+    get_standard_records("Areas", "POST", "api/areas", ticket="x", project_id="x")
 
 if harvest_info['checklists'] == True:
-	Get_standard_records("Checklists","GET","fieldapi/checklists/v1.json",ticket="x",project_id="x")
-	
+    get_standard_records("Checklists", "GET", "fieldapi/checklists/v1.json", ticket="x", project_id="x")
 
 
-#get all Categories from field
+# get all Categories from field
 if harvest_info['categories'] == True:
 
-	All_Categories_Normal = []
-	All_Categories_Custom = []
-	All_Categories_EquipmentSets = []
+    all_categories_normal = []
+    all_categories_custom = []
+    all_categories_equipment_sets = []
 
-	for i in range(len(All_Project_IDs)):
+    for i in range(len(all_project_IDs)):
 
-		Current_Project_ID = All_Project_IDs[i]
+        current_project_id = all_project_IDs[i]
 
-		Get_All_Categories_from_Project = Field_Api_CMD("POST", "api/get_categories", {'ticket': Field_ticket,'project_id': Current_Project_ID})
+        get_all_categories_from_project = field_api_cmd("POST", "api/get_categories", {'ticket': Field_ticket, 'project_id': current_project_id})
 
-		Get_Categories_Normal = Get_All_Categories_from_Project['categories']
-		for i in range(len(Get_Categories_Normal)):
-			Get_Categories_Normal[i]['project_id'] = Current_Project_ID
-		
-		Get_Categories_Custom = Get_All_Categories_from_Project['customizable_categories']
-		for i in range(len(Get_Categories_Custom)):
-			Get_Categories_Custom[i]['project_id'] = Current_Project_ID
-		
-		Get_Categories_EquipmentSets = Get_All_Categories_from_Project['equipment_category_status_sets']
-		for i in range(len(Get_Categories_EquipmentSets)):
-			Get_Categories_EquipmentSets[i]['project_id'] = Current_Project_ID
+        get_categories_normal = get_all_categories_from_project['categories']
+        for i in range(len(get_categories_normal)):
+            get_categories_normal[i]['project_id'] = current_project_id
 
-		print "Adding %s Normal cat, %s Custom Cat and %s Equipment Status" % (len(Get_Categories_Normal),len(Get_Categories_Custom),len(Get_Categories_EquipmentSets))
+        get_categories_custom = get_all_categories_from_project['customizable_categories']
+        for i in range(len(get_categories_custom)):
+            get_categories_custom[i]['project_id'] = current_project_id
 
-		All_Categories_Normal.append(Get_Categories_Normal)
-		All_Categories_Custom.append(Get_Categories_Custom)
-		All_Categories_EquipmentSets.append(Get_Categories_EquipmentSets)
+        get_categories_equipment_sets = get_all_categories_from_project['equipment_category_status_sets']
+        for i in range(len(get_categories_equipment_sets)):
+            get_categories_equipment_sets[i]['project_id'] = current_project_id
 
-	SaveFile("Categories_normal_info",All_Categories_Normal)
-	SaveFile("Categories_custom_info",All_Categories_Custom)
-	SaveFile("Categories_Equipment_sets_info",All_Categories_EquipmentSets)
+        print "Adding %s Normal cat, %s Custom Cat and %s Equipment Status" % (len(get_categories_normal), len(get_categories_custom), len(get_categories_equipment_sets))
 
+        all_categories_normal.append(get_categories_normal)
+        all_categories_custom.append(get_categories_custom)
+        all_categories_equipment_sets.append(get_categories_equipment_sets)
 
-
+    save_file("Categories_normal_info", all_categories_normal)
+    save_file("Categories_custom_info", all_categories_custom)
+    save_file("Categories_Equipment_sets_info", all_categories_equipment_sets)
 
 
 print "- - Done - -"
