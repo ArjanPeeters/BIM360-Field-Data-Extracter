@@ -2,6 +2,7 @@ from __future__ import print_function
 import requests
 import json
 import datetime
+import os
 try:
     from ConfigParser import SafeConfigParser
 except ImportError:
@@ -17,6 +18,33 @@ password = config.get("Field", "password")
 client_id = config.get("HQ", "client_id")
 client_secret = config.get("HQ", "client_secret")
 account_id = config.get("HQ", "account_id")
+
+save_path = config.get("paths", "main_path")
+backup_path = config.get("paths", "backup_path")
+if not os.path.isdir(save_path):
+  print("Created directory", save_path)
+  os.makedirs(backup_path)
+
+# save file function
+timestamp = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
+def double_save_file(name, data):
+  """
+  Checks if directories excist and makes them if not
+  double saves the files for use in PowerBI
+  """
+  filename = '{name}.json'.format(name=name, ts=timestamp)
+  backupname = '{name}_{ts}.json'.format(name=name, ts=timestamp)
+  save_file = os.path.join(save_path,filename)
+  backup_path_ts = os.path.join(backup_path,timestamp)
+  if not os.path.isdir(backup_path_ts):
+    os.makedirs(backup_path_ts)
+  backup_file = os.path.join(backup_path_ts,backupname)
+  with open(save_file, 'w') as outfile:
+    json.dump(data, outfile)
+  print('{fn} saved'.format(fn=filename))
+  with open(backup_file, 'w') as outbackup:
+    json.dump(data, outbackup)
+  print('{fn} saved'.format(fn=backupname))
 
 
 BASE_URL_FIELD = "https://bim360field.eu.autodesk.com/"
@@ -134,15 +162,6 @@ for i in range(len(get_projects)):
 
 print(len(all_project_ids), " projects are being harvested")
 
-# save file function
-timestamp = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
-def save_file(name, data):
-  filename = '{name}_{ts}.json'.format(name=name, ts=timestamp)
-  with open(filename, 'w') as outfile:
-    json.dump(data, outfile)
-  print('{fn} saved'.format(fn=filename))
-
-
 # get all project info from HQ
 if harvest_info['project_info']:
   all_project_info = []
@@ -150,7 +169,7 @@ if harvest_info['project_info']:
     all_project_info.append(bim360_api_cmd('GET','projects/{hq}'.format(hq=project_id)))
     print('adding project info from {name}'.format(name=all_project_info[i]['name']))
     all_project_info[i]['field_project_id'] = all_project_ids[i]
-  save_file('Project_info', all_project_info)
+  double_save_file('Project_info', all_project_info)
 
 
 # standard function for getting info from field
@@ -167,7 +186,7 @@ def get_standard_field_records(type_name, type_query, api_location, **parameters
       all_records.append(records)
     else:
       print('{} {} for project: {}'.format(len(records), type_name, all_project_names[i]))
-  save_file("{}_info".format(type_name), all_records)
+  double_save_file("{}_info".format(type_name), all_records)
 
 
 # standard function for getting info from HQ
@@ -183,7 +202,7 @@ def get_standard_hq_records(type_name, type_query, api_location, limitandrespons
     offset += limit
     response = len(get_records)
   print('Adding {} {}'.format(len(all_records),type_name))
-  save_file('{}_info'.format(type_name), all_records)
+  double_save_file('{}_info'.format(type_name), all_records)
 
 # get contacts from field
 if harvest_info['users']:
@@ -250,9 +269,9 @@ if harvest_info['categories']:
     all_categories_custom.append(custom_categories)
     all_categories_equipment_sets.append(equipment_sets_categories)
 
-  save_file("Categories_normal_info", all_categories_normal)
-  save_file("Categories_custom_info", all_categories_custom)
-  save_file("Categories_Equipment_sets_info", all_categories_equipment_sets)
+  double_save_file("Categories_normal_info", all_categories_normal)
+  double_save_file("Categories_custom_info", all_categories_custom)
+  double_save_file("Categories_Equipment_sets_info", all_categories_equipment_sets)
 
 
 print("- - Done - -")
